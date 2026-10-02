@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { SettingsPage } from "@/components/sentinel/soc";
+export const Route = createFileRoute("/_authenticated/settings")({ head: () => ({ meta: [{ title: "Settings | SentinelIDS" }, { name: "description", content: "Configure SentinelIDS analyst and console preferences." }, { property: "og:title", content: "Settings | SentinelIDS" }, { property: "og:description", content: "Configure SentinelIDS analyst and console preferences." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: SettingsPage });

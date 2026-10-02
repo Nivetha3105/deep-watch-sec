@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { TelemetryPage } from "@/components/sentinel/soc";
+export const Route = createFileRoute("/_authenticated/telemetry")({ head: () => ({ meta: [{ title: "Incident Telemetry | SentinelIDS" }, { name: "description", content: "Search and action SentinelIDS security incident telemetry." }, { property: "og:title", content: "Incident Telemetry | SentinelIDS" }, { property: "og:description", content: "Search and action SentinelIDS security incident telemetry." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: TelemetryPage });

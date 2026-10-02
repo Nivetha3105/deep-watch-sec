@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { DashboardPage } from "@/components/sentinel/soc";
+export const Route = createFileRoute("/_authenticated/dashboard")({ head: () => ({ meta: [{ title: "Dashboard | SentinelIDS" }, { name: "description", content: "SentinelIDS security operations overview." }, { property: "og:title", content: "Dashboard | SentinelIDS" }, { property: "og:description", content: "SentinelIDS security operations overview." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: DashboardPage });
