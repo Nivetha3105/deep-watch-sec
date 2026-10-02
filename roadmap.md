@@ -1,0 +1,4 @@
+- [ ] Add frontend-only analyst session and protected SOC shell.
+- [ ] Reorganize SentinelIDS into login, dashboard, threats, analytics, telemetry, simulator, and settings views.
+- [ ] Preserve the existing mock service layer and add dashboard-friendly analytics data.
+- [ ] Verify routing, build output, and key login/navigation interactions.
