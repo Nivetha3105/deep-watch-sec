@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ThreatsPage } from "@/components/sentinel/soc";
+export const Route = createFileRoute("/_authenticated/threats")({ head: () => ({ meta: [{ title: "Live Threats | SentinelIDS" }, { name: "description", content: "Monitor active SentinelIDS network threats in real time." }, { property: "og:title", content: "Live Threats | SentinelIDS" }, { property: "og:description", content: "Monitor active SentinelIDS network threats in real time." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ThreatsPage });
