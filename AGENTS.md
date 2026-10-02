@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep SentinelIDS data access behind `src/services/sentinel-api.ts` so UI components stay replaceable by future REST and socket implementations.
