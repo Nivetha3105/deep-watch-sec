@@ -20,6 +20,9 @@ export interface AnalyticsSummary {
   actors: number;
   severity: Record<Severity, number>;
   vectors: Record<AttackType, number>;
+  activity: { label: string; alerts: number; critical: number }[];
+  topAttackers: { ip: string; count: number; lastSeen: string }[];
+  daily: { day: string; alerts: number; resolved: number }[];
 }
 
 const seedAlerts: SecurityAlert[] = [
@@ -51,7 +54,33 @@ export const sentinelApi = {
   async getAlerts() { await wait(); return [...records]; },
   async getSummary(): Promise<AnalyticsSummary> {
     await wait(200);
-    return { telemetry: 2847391, alerts: 127, critical: 18, actors: 43, severity: { HIGH: 18, MEDIUM: 42, LOW: 67 }, vectors: { "BRUTE FORCE": 54, "PORT SCAN": 41, "DOS BURST": 32 } };
+    return {
+      telemetry: 2847391,
+      alerts: 127,
+      critical: 18,
+      actors: 43,
+      severity: { HIGH: 18, MEDIUM: 42, LOW: 67 },
+      vectors: { "BRUTE FORCE": 54, "PORT SCAN": 41, "DOS BURST": 32 },
+      activity: [
+        { label: "00:00", alerts: 8, critical: 1 }, { label: "04:00", alerts: 14, critical: 2 },
+        { label: "08:00", alerts: 10, critical: 1 }, { label: "12:00", alerts: 26, critical: 5 },
+        { label: "16:00", alerts: 18, critical: 3 }, { label: "20:00", alerts: 32, critical: 6 },
+        { label: "Now", alerts: 19, critical: 4 },
+      ],
+      topAttackers: [
+        { ip: "192.168.1.50", count: 28, lastSeen: "06:14:38" },
+        { ip: "172.16.0.88", count: 21, lastSeen: "06:08:51" },
+        { ip: "10.0.4.118", count: 17, lastSeen: "06:12:09" },
+        { ip: "192.168.8.207", count: 13, lastSeen: "05:51:03" },
+        { ip: "172.16.12.91", count: 9, lastSeen: "05:37:44" },
+      ],
+      daily: [
+        { day: "Mon", alerts: 84, resolved: 61 }, { day: "Tue", alerts: 102, resolved: 76 },
+        { day: "Wed", alerts: 96, resolved: 69 }, { day: "Thu", alerts: 131, resolved: 94 },
+        { day: "Fri", alerts: 127, resolved: 88 }, { day: "Sat", alerts: 74, resolved: 57 },
+        { day: "Sun", alerts: 91, resolved: 64 },
+      ],
+    };
   },
   async simulate(type: AttackType) {
     await wait(180);
