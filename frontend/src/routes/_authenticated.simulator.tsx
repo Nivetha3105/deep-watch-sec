@@ -1,0 +1,3 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { SimulatorPage } from "@/components/sentinel/soc";
+export const Route = createFileRoute("/_authenticated/simulator")({ head: () => ({ meta: [{ title: "Attack Simulator | SentinelIDS" }, { name: "description", content: "Validate SentinelIDS detections with controlled attack simulations." }, { property: "og:title", content: "Attack Simulator | SentinelIDS" }, { property: "og:description", content: "Validate SentinelIDS detections with controlled attack simulations." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: SimulatorPage });

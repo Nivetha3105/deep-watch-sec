@@ -9,8 +9,31 @@ export interface SecurityAlert {
   sourceIp: string;
   description: string;
   status: AlertStatus;
+  assignedTo?: string | null;
   timestamp: string;
   fresh?: boolean;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  actor: string;
+  action: string;
+  target: { type: string; id: string };
+  metadata: Record<string, any>;
+  createdAt: string;
+}
+
+export interface NotificationProviderStatus {
+  name: string;
+  enabled: boolean;
+  configured: boolean;
+  details?: Record<string, any>;
+}
+
+export interface NotificationStatusResponse {
+  providers: NotificationProviderStatus[];
+  min_severity: Severity;
+  cooldown_seconds: number;
 }
 
 export interface AnalyticsSummary {
@@ -25,70 +48,319 @@ export interface AnalyticsSummary {
   daily: { day: string; alerts: number; resolved: number }[];
 }
 
-const seedAlerts: SecurityAlert[] = [
-  { id: "ALR-9027", severity: "HIGH", attackType: "BRUTE FORCE", sourceIp: "192.168.1.50", description: "6 failed login attempts detected", status: "OPEN", timestamp: "06:14:38" },
-  { id: "ALR-9026", severity: "MEDIUM", attackType: "PORT SCAN", sourceIp: "10.0.4.118", description: "Sequential scan across 24 service ports", status: "INVESTIGATING", timestamp: "06:12:09" },
-  { id: "ALR-9025", severity: "HIGH", attackType: "DOS BURST", sourceIp: "172.16.0.88", description: "Request velocity exceeded 850 req/s", status: "OPEN", timestamp: "06:08:51" },
-  { id: "ALR-9024", severity: "LOW", attackType: "PORT SCAN", sourceIp: "10.0.2.14", description: "Low-frequency discovery pattern observed", status: "RESOLVED", timestamp: "05:56:22" },
-  { id: "ALR-9023", severity: "MEDIUM", attackType: "BRUTE FORCE", sourceIp: "192.168.8.207", description: "Authentication retry threshold exceeded", status: "INVESTIGATING", timestamp: "05:51:03" },
-  { id: "ALR-9022", severity: "LOW", attackType: "PORT SCAN", sourceIp: "10.0.9.31", description: "Routine perimeter probe isolated", status: "RESOLVED", timestamp: "05:42:17" },
-  { id: "ALR-9021", severity: "HIGH", attackType: "DOS BURST", sourceIp: "172.16.12.91", description: "SYN packet burst matched attack signature", status: "OPEN", timestamp: "05:37:44" },
-];
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-const wait = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
-let records = [...seedAlerts];
-
-const templates: Record<AttackType, Omit<SecurityAlert, "id" | "timestamp" | "fresh">> = {
-  "BRUTE FORCE": { severity: "HIGH", attackType: "BRUTE FORCE", sourceIp: "192.168.1.50", description: "6 failed login attempts detected", status: "OPEN" },
-  "PORT SCAN": { severity: "MEDIUM", attackType: "PORT SCAN", sourceIp: "10.0.4.118", description: "Sequential scan across 24 service ports", status: "OPEN" },
-  "DOS BURST": { severity: "HIGH", attackType: "DOS BURST", sourceIp: "172.16.0.88", description: "Request velocity exceeded 850 req/s", status: "OPEN" },
-};
+function mapAlert(item: any): SecurityAlert {
+  return {
+    id: item._id ?? item.id,
+    severity: item.severity,
+    attackType: item.attack_type,
+    sourceIp: item.source_ip,
+    description: item.message,
+    status: item.status ?? "OPEN",
+    assignedTo: item.assigned_to ?? null,
+    timestamp: item.detected_at
+      ? new Date(item.detected_at).toLocaleTimeString("en-GB", {
+          hour12: false,
+        })
+      : "",
+  };
+}
 
 export const sentinelApi = {
   endpoints: {
-    alerts: "/api/alerts",
-    summary: "/api/analytics/summary",
-    alert: (id: string) => `/api/alerts/${id}`,
-    simulate: (kind: string) => `/api/simulate/${kind}`,
+    alerts: `${API_URL}/alerts`,
+    summary: `${API_URL}/analytics/summary`,
+    events: `${API_URL}/events`,
+    notifications: `${API_URL}/notifications/status`,
+    auditLogs: `${API_URL}/audit-logs`,
   },
-  async getAlerts() { await wait(); return [...records]; },
+
+  async getAlerts(): Promise<SecurityAlert[]> {
+    const response = await fetch(`${API_URL}/alerts`);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch alerts");
+    }
+
+    const result = await response.json();
+
+    return (result.data ?? []).map(mapAlert);
+  },
+
   async getSummary(): Promise<AnalyticsSummary> {
-    await wait(200);
+    const response = await fetch(`${API_URL}/analytics/summary`);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch analytics");
+    }
+
+    const result = await response.json();
+    const data = result.data;
+
+    const severity = {
+      HIGH: data.severity_breakdown?.HIGH ?? 0,
+      MEDIUM: data.severity_breakdown?.MEDIUM ?? 0,
+      LOW: data.severity_breakdown?.LOW ?? 0,
+    };
+
+    const vectors = {
+      "BRUTE FORCE": data.attack_type_breakdown?.["BRUTE FORCE"] ?? 0,
+      "PORT SCAN": data.attack_type_breakdown?.["PORT SCAN"] ?? 0,
+      "DOS BURST": data.attack_type_breakdown?.["DOS BURST"] ?? 0,
+    };
+
+    const activity = (data.timeline ?? []).map((item: any) => ({
+      label: item.time,
+      alerts: item.alerts ?? 0,
+      critical: 0,
+    }));
+
+    const topAttackers = (data.top_attacker_ips ?? []).map((item: any) => ({
+      ip: item.ip,
+      count: item.count,
+      lastSeen: "",
+    }));
+
     return {
-      telemetry: 2847391,
-      alerts: 127,
-      critical: 18,
-      actors: 43,
-      severity: { HIGH: 18, MEDIUM: 42, LOW: 67 },
-      vectors: { "BRUTE FORCE": 54, "PORT SCAN": 41, "DOS BURST": 32 },
-      activity: [
-        { label: "00:00", alerts: 8, critical: 1 }, { label: "04:00", alerts: 14, critical: 2 },
-        { label: "08:00", alerts: 10, critical: 1 }, { label: "12:00", alerts: 26, critical: 5 },
-        { label: "16:00", alerts: 18, critical: 3 }, { label: "20:00", alerts: 32, critical: 6 },
-        { label: "Now", alerts: 19, critical: 4 },
-      ],
-      topAttackers: [
-        { ip: "192.168.1.50", count: 28, lastSeen: "06:14:38" },
-        { ip: "172.16.0.88", count: 21, lastSeen: "06:08:51" },
-        { ip: "10.0.4.118", count: 17, lastSeen: "06:12:09" },
-        { ip: "192.168.8.207", count: 13, lastSeen: "05:51:03" },
-        { ip: "172.16.12.91", count: 9, lastSeen: "05:37:44" },
-      ],
-      daily: [
-        { day: "Mon", alerts: 84, resolved: 61 }, { day: "Tue", alerts: 102, resolved: 76 },
-        { day: "Wed", alerts: 96, resolved: 69 }, { day: "Thu", alerts: 131, resolved: 94 },
-        { day: "Fri", alerts: 127, resolved: 88 }, { day: "Sat", alerts: 74, resolved: 57 },
-        { day: "Sun", alerts: 91, resolved: 64 },
-      ],
+      telemetry: data.total_events ?? 0,
+      alerts: data.total_alerts ?? 0,
+
+      // HIGH severity is treated as critical for the dashboard.
+      critical: severity.HIGH,
+
+      // Backend currently returns the top 5 attacker IPs.
+      actors: topAttackers.length,
+
+      severity,
+      vectors,
+      activity,
+      topAttackers,
+
+      // The current backend provides a 24-hour timeline,
+      // not a 7-day daily breakdown.
+      daily: [],
     };
   },
-  async simulate(type: AttackType) {
-    await wait(180);
-    const alert = { ...templates[type], id: `ALR-${9030 + records.length}`, timestamp: new Date().toLocaleTimeString("en-GB", { hour12: false }), fresh: true };
-    records = [alert, ...records];
-    return alert;
+
+  async simulate(type: AttackType): Promise<SecurityAlert> {
+    const events = createSimulationEvents(type);
+
+    let lastAlert: SecurityAlert | null = null;
+
+    for (const event of events) {
+      const response = await fetch(`${API_URL}/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(event),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Simulation failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.alert) {
+        lastAlert = mapAlert(result.alert);
+      }
+
+      // Small delay so the detection engine can process
+      // the events in sequence.
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+
+    if (lastAlert) {
+      return {
+        ...lastAlert,
+        fresh: true,
+      };
+    }
+
+    return {
+      id: `SIM-${Date.now()}`,
+      severity:
+        type === "PORT SCAN"
+          ? "MEDIUM"
+          : "HIGH",
+      attackType: type,
+      sourceIp: simulationIp[type],
+      description: `${type} simulation completed`,
+      status: "OPEN",
+      timestamp: new Date().toLocaleTimeString("en-GB", {
+        hour12: false,
+      }),
+      fresh: true,
+    };
   },
-  async resolveAlert(id: string) { await wait(220); records = records.map((item) => item.id === id ? { ...item, status: "RESOLVED" } : item); },
-  async deleteAlert(id: string) { await wait(220); records = records.filter((item) => item.id !== id); },
-  reset() { records = [...seedAlerts]; },
+
+  async resolveAlert(id: string) {
+    const response = await fetch(`${API_URL}/alerts/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "RESOLVED" }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to resolve alert: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async deleteAlert(id: string) {
+    const response = await fetch(`${API_URL}/alerts/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete alert: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async updateAlert(
+    id: string,
+    updates: {
+      status?: AlertStatus;
+      assignedTo?: string;
+      severity?: Severity;
+      message?: string;
+    }
+  ): Promise<SecurityAlert> {
+    const payload: {
+      status?: AlertStatus;
+      assigned_to?: string;
+      severity?: Severity;
+      message?: string;
+    } = {};
+    if (updates.status) payload.status = updates.status;
+    if (updates.assignedTo !== undefined) payload.assigned_to = updates.assignedTo;
+    if (updates.severity) payload.severity = updates.severity;
+    if (updates.message) payload.message = updates.message;
+
+    const response = await fetch(`${API_URL}/alerts/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-analyst-id": "analyst",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update alert: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return mapAlert(result.data);
+  },
+
+  async getNotificationStatus(): Promise<NotificationStatusResponse> {
+    const response = await fetch(`${API_URL}/notifications/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch notification status: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.data;
+  },
+
+  async getAuditLogs(params: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    actor?: string;
+  } = {}): Promise<{ logs: AuditLogRecord[]; total: number; totalPages: number }> {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.action) query.set("action", params.action);
+    if (params.actor) query.set("actor", params.actor);
+
+    const url = `${API_URL}/audit-logs${query.toString() ? `?${query.toString()}` : ""}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audit logs: ${response.status}`);
+    }
+    const result = await response.json();
+    return {
+      logs: (result.data || []).map((item: any) => ({
+        id: item._id || item.id,
+        actor: item.actor,
+        action: item.action,
+        target: item.target,
+        metadata: item.metadata || {},
+        createdAt: item.created_at ? new Date(item.created_at).toLocaleString() : "",
+      })),
+      total: result.pagination?.total || 0,
+      totalPages: result.pagination?.totalPages || 1,
+    };
+  },
 };
+
+const simulationIp: Record<AttackType, string> = {
+  "BRUTE FORCE": "198.51.100.23",
+  "PORT SCAN": "203.0.113.45",
+  "DOS BURST": "198.51.100.99",
+};
+
+function createSimulationEvents(type: AttackType) {
+  if (type === "BRUTE FORCE") {
+    return Array.from({ length: 6 }, (_, index) => ({
+      source_ip: "198.51.100.23",
+      destination_ip: "10.0.0.1",
+      port: 443,
+      action: "LOGIN",
+      result: "FAILED",
+      timestamp: new Date().toISOString(),
+      metadata: {
+        attempt: index + 1,
+        target_account: "admin",
+        auth_method: "password",
+      },
+    }));
+  }
+
+  if (type === "PORT SCAN") {
+    const ports = [
+      21, 22, 23, 25, 80,
+      110, 143, 443, 445, 1433,
+      3306, 3389, 5432, 8080, 27017,
+    ];
+
+    return ports.map((port, index) => ({
+      source_ip: "203.0.113.45",
+      destination_ip: "10.0.0.2",
+      port,
+      action: "PORT_PROBE",
+      result:
+        port === 80 || port === 443
+          ? "SUCCESS"
+          : "BLOCKED",
+      timestamp: new Date().toISOString(),
+      metadata: {
+        scan_type: "SYN_STEALTH",
+        probe_id: index + 1,
+      },
+    }));
+  }
+
+  return Array.from({ length: 25 }, (_, index) => ({
+    source_ip: "198.51.100.99",
+    destination_ip: "10.0.0.5",
+    port: 80,
+    action: "HTTP_FLOOD",
+    result: "FAILED",
+    timestamp: new Date().toISOString(),
+    metadata: {
+      burst_id: index + 1,
+      payload_size: 4096,
+    },
+  }));
+}

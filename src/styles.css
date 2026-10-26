@@ -5,11 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-sans: "Plus Jakarta Sans", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
-  --radius-sm: calc(var(--radius) - 3px);
-  --radius-md: calc(var(--radius) - 1px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -36,43 +38,76 @@
 }
 
 :root {
-  --radius: 0.4rem;
-  --background: oklch(0.115 0.025 252);
-  --foreground: oklch(0.93 0.015 232);
-  --card: oklch(0.155 0.028 251 / 82%);
-  --card-foreground: oklch(0.93 0.015 232);
-  --popover: oklch(0.17 0.03 251);
-  --popover-foreground: oklch(0.93 0.015 232);
-  --primary: oklch(0.79 0.14 205);
-  --primary-foreground: oklch(0.12 0.03 251);
-  --secondary: oklch(0.19 0.03 250);
-  --secondary-foreground: oklch(0.9 0.02 232);
-  --muted: oklch(0.19 0.025 250);
-  --muted-foreground: oklch(0.66 0.035 240);
-  --accent: oklch(0.22 0.04 241);
-  --accent-foreground: oklch(0.93 0.015 232);
-  --destructive: oklch(0.65 0.21 25);
-  --border: oklch(0.32 0.035 245 / 65%);
-  --input: oklch(0.24 0.03 245);
-  --ring: oklch(0.79 0.14 205);
-  --severity-high: oklch(0.67 0.22 25);
-  --severity-medium: oklch(0.75 0.16 63);
-  --severity-low: oklch(0.74 0.16 154);
-  --panel: oklch(0.14 0.026 252 / 92%);
-  --gridline: oklch(0.24 0.028 245 / 45%);
+  --radius: 0.95rem;
+  /* Ivory warm background */
+  --background: oklch(0.925 0.014 65);
+  /* Deep warm charcoal/espresso typography */
+  --foreground: oklch(0.22 0.018 25);
+  /* Clean warm cream/ivory card surface */
+  --card: oklch(0.985 0.006 75);
+  --card-foreground: oklch(0.22 0.018 25);
+  --popover: oklch(0.985 0.006 75);
+  --popover-foreground: oklch(0.22 0.018 25);
+  /* Signature deep wine / burgundy red */
+  --primary: oklch(0.42 0.15 15);
+  --primary-foreground: oklch(0.985 0.005 75);
+  /* Dusty rose / warm blush secondary */
+  --secondary: oklch(0.91 0.025 15);
+  --secondary-foreground: oklch(0.35 0.11 15);
+  /* Muted warm oatmeal */
+  --muted: oklch(0.89 0.012 65);
+  --muted-foreground: oklch(0.50 0.018 45);
+  /* Soft warm rose hover accent */
+  --accent: oklch(0.93 0.022 15);
+  --accent-foreground: oklch(0.28 0.12 15);
+  /* Destructive ruby */
+  --destructive: oklch(0.52 0.22 25);
+  /* Delicate warm parchment border */
+  --border: oklch(0.86 0.012 65);
+  --input: oklch(0.88 0.012 65);
+  --ring: oklch(0.42 0.15 15);
+  /* Status indicators harmonized with ivory & wine palette */
+  --severity-high: oklch(0.46 0.18 18);
+  --severity-medium: oklch(0.58 0.15 50);
+  --severity-low: oklch(0.48 0.12 150);
+  --panel: oklch(0.985 0.006 75 / 96%);
+  --gridline: oklch(0.85 0.012 65 / 45%);
 }
 
 * { border-color: var(--color-border); }
-html { color-scheme: dark; }
+html { color-scheme: light; }
 body { margin: 0; min-width: 320px; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
 button, input { font: inherit; }
 
 @utility soc-grid {
   background-image: linear-gradient(var(--gridline) 1px, transparent 1px), linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-size: 32px 32px;
 }
-@utility panel-surface { background: var(--card); backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent), 0 16px 40px color-mix(in oklab, var(--background) 70%, transparent); }
-@utility cyan-glow { box-shadow: 0 0 20px color-mix(in oklab, var(--primary) 10%, transparent); }
-@utility alert-enter { animation: alert-enter 500ms ease-out both; }
-@keyframes alert-enter { from { opacity: 0; transform: translateY(-8px); background: color-mix(in oklab, var(--primary) 12%, transparent); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+@utility panel-surface {
+  background: var(--card);
+  box-shadow: 0 4px 20px -2px rgba(90, 60, 50, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+@utility cyan-glow {
+  box-shadow: 0 0 20px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+@utility alert-enter {
+  animation: alert-enter 500ms ease-out both;
+}
+@keyframes alert-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

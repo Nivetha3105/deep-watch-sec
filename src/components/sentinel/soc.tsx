@@ -2,8 +2,9 @@ import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Activity, AlertTriangle, BarChart3, Bell, Check, ChevronLeft, ChevronRight, CircleDot,
-  ClipboardList, Eye, Filter, Gauge, LayoutDashboard, LogOut, Menu, Network, Radar,
-  RefreshCw, Search, Settings2, ShieldCheck, Trash2, UserRoundSearch, X, Zap,
+  ClipboardList, Eye, Filter, Gauge, LayoutDashboard, LogOut, Mail, Menu, MessageSquare,
+  Network, Radar, Radio, RefreshCw, Search, Send, Settings2, ShieldCheck, Trash2,
+  UserCheck, UserRoundSearch, X, Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -11,7 +12,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getDemoSession, signInDemo, signOutDemo } from "@/lib/sentinel-auth";
-import { sentinelApi, type AnalyticsSummary, type AttackType, type SecurityAlert, type Severity } from "@/services/sentinel-api";
+import { sentinelApi, type AnalyticsSummary, type AttackType, type SecurityAlert, type Severity, type AuditLogRecord, type NotificationStatusResponse, type AlertStatus } from "@/services/sentinel-api";
+import { connectSocket } from "@/socket";
 
 export const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -23,21 +25,21 @@ export const navItems = [
 ] as const;
 
 const severityTone: Record<Severity, string> = {
-  HIGH: "border-severity-high/35 bg-severity-high/10 text-severity-high",
-  MEDIUM: "border-severity-medium/35 bg-severity-medium/10 text-severity-medium",
-  LOW: "border-severity-low/35 bg-severity-low/10 text-severity-low",
+  HIGH: "border-severity-high/30 bg-severity-high/12 text-severity-high",
+  MEDIUM: "border-severity-medium/30 bg-severity-medium/12 text-severity-medium",
+  LOW: "border-severity-low/30 bg-severity-low/12 text-severity-low",
 };
 
 export function SeverityBadge({ value }: { value: Severity }) {
-  return <span className={cn("inline-flex min-w-16 items-center justify-center rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold", severityTone[value])}>{value}</span>;
+  return <span className={cn("inline-flex min-w-16 items-center justify-center rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold", severityTone[value])}>{value}</span>;
 }
 
 function LiveMark({ label = "Live" }: { label?: string }) {
-  return <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-severity-low"><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-severity-low opacity-40" /><span className="relative h-2 w-2 rounded-full bg-severity-low" /></span>{label}</span>;
+  return <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-severity-low"><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-severity-low opacity-40" /><span className="relative h-2 w-2 rounded-full bg-severity-low" /></span>{label}</span>;
 }
 
 function Logo({ compact = false }: { compact?: boolean }) {
-  return <div className="flex items-center gap-3"><span className="cyan-glow grid h-10 w-10 shrink-0 place-items-center rounded-md border border-primary/35 bg-primary/10 text-primary"><ShieldCheck size={22} /></span>{!compact && <div><div className="flex items-center gap-2"><span className="text-lg font-semibold tracking-wide">Sentinel<span className="text-primary">IDS</span></span><span className="rounded-sm border border-primary/25 bg-primary/8 px-1.5 py-0.5 font-mono text-[9px] text-primary">v2.0</span></div><p className="mt-0.5 text-[10px] text-muted-foreground">Network Intrusion &amp; Threat Monitoring</p></div>}</div>;
+  return <div className="flex items-center gap-3"><span className="cyan-glow grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/25 bg-primary/10 text-primary"><ShieldCheck size={22} /></span>{!compact && <div><div className="flex items-center gap-2"><span className="text-lg font-bold tracking-tight">Sentinel<span className="text-primary">IDS</span></span><span className="rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-medium text-primary">v2.0</span></div><p className="mt-0.5 text-[10px] text-muted-foreground">Network Intrusion &amp; Threat Monitoring</p></div>}</div>;
 }
 
 function Clock() {
@@ -56,29 +58,29 @@ export function AppShell({ children }: { children: ReactNode }) {
   return <div className="min-h-screen bg-background text-foreground">
     <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card/95 px-4 py-5 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0", mobileOpen ? "translate-x-0" : "-translate-x-full")}>
       <div className="px-2"><Logo /></div>
-      <div className="mt-10 px-2"><p className="mb-3 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Operations center</p><nav className="space-y-1">{navItems.map(({ to, label, icon: Icon }) => <Link key={to} to={to} onClick={() => setMobileOpen(false)} className={cn("flex items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-xs font-medium transition-colors", location.pathname === to ? "border-primary/20 bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground")}><Icon size={16} />{label}{to === "/threats" && <span className="ml-auto rounded-sm bg-severity-high/10 px-1.5 py-0.5 font-mono text-[9px] text-severity-high">3</span>}</Link>)}</nav></div>
-      <div className="mt-auto space-y-4"><div className="border-t border-border pt-4"><div className="flex items-center gap-3 rounded-md bg-background/45 p-3"><div className="grid h-8 w-8 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-xs text-primary">AN</div><div className="min-w-0"><p className="truncate text-xs font-semibold">{session?.label ?? "Analyst"}</p><p className="font-mono text-[9px] text-muted-foreground">TIER 1 · ACTIVE</p></div><span className="ml-auto h-2 w-2 rounded-full bg-severity-low" /></div><Button variant="ghost" className="mt-2 w-full justify-start text-xs" onClick={logout}><LogOut size={14} />Log out</Button></div><p className="px-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">SentinelIDS SOC / v2.0</p></div>
+      <div className="mt-8 px-2"><p className="mb-3 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Operations center</p><nav className="space-y-1.5">{navItems.map(({ to, label, icon: Icon }) => <Link key={to} to={to} onClick={() => setMobileOpen(false)} className={cn("flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs transition-all duration-200", location.pathname === to ? "bg-primary text-primary-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-accent/80 hover:text-foreground font-medium")}><Icon size={16} />{label}{to === "/threats" && <span className={cn("ml-auto rounded-full px-2 py-0.5 font-mono text-[9px]", location.pathname === to ? "bg-white/20 text-white" : "bg-severity-high/15 text-severity-high font-semibold")}>3</span>}</Link>)}</nav></div>
+      <div className="mt-auto space-y-4"><div className="border-t border-border pt-4"><div className="flex items-center gap-3 rounded-xl bg-accent/40 p-3 border border-border/50"><div className="grid h-8 w-8 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-xs font-semibold text-primary">AN</div><div className="min-w-0"><p className="truncate text-xs font-semibold">{session?.label ?? "Analyst"}</p><p className="font-mono text-[9px] text-muted-foreground">TIER 1 · ACTIVE</p></div><span className="ml-auto h-2 w-2 rounded-full bg-severity-low" /></div><Button variant="ghost" className="mt-2 w-full justify-start text-xs rounded-xl" onClick={logout}><LogOut size={14} />Log out</Button></div><p className="px-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">SentinelIDS SOC / v2.0</p></div>
     </aside>
     {mobileOpen && <button aria-label="Close navigation" className="fixed inset-0 z-30 bg-background/70 lg:hidden" onClick={() => setMobileOpen(false)} />}
-    <div className="lg:pl-64"><header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-xl"><div className="flex min-h-[72px] items-center justify-between gap-4 px-5 lg:px-8"><Button aria-label="Open navigation" variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}><Menu size={18} /></Button><div className="min-w-0 flex-1"><p className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary">Operations / {active.label}</p><h1 className="mt-1 truncate text-lg font-semibold">{active.label}</h1></div><div className="hidden items-center gap-5 md:flex"><div className="text-right"><LiveMark label="Connected" /><p className="mt-0.5 font-mono text-[9px] text-muted-foreground">LIVE SOCKET STREAM</p></div><Button aria-label="Notifications" variant="ghost" size="icon" className="relative"><Bell size={16} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-severity-high" /></Button><Clock /><div className="grid h-8 w-8 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-[10px] text-primary">AN</div></div></div></header><main className="soc-grid min-h-[calc(100vh-72px)] px-5 py-6 lg:px-8">{children}</main></div>
+    <div className="lg:pl-64"><header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-xl"><div className="flex min-h-[72px] items-center justify-between gap-4 px-5 lg:px-8"><Button aria-label="Open navigation" variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}><Menu size={18} /></Button><div className="min-w-0 flex-1"><p className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary">Operations / {active.label}</p><h1 className="mt-1 truncate text-lg font-bold tracking-tight">{active.label}</h1></div><div className="hidden items-center gap-5 md:flex"><div className="text-right"><LiveMark label="Connected" /><p className="mt-0.5 font-mono text-[9px] text-muted-foreground">LIVE SOCKET STREAM</p></div><Button aria-label="Notifications" variant="ghost" size="icon" className="relative"><Bell size={16} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-severity-high" /></Button><Clock /><div className="grid h-8 w-8 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-[10px] font-semibold text-primary">AN</div></div></div></header><main className="soc-grid min-h-[calc(100vh-72px)] px-5 py-6 lg:px-8">{children}</main></div>
   </div>;
 }
 
 function PageIntro({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
-  return <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">{eyebrow}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p></div>{action}</div>;
+  return <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">{eyebrow}</p><h2 className="mt-2 text-2xl font-bold tracking-tight">{title}</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p></div>{action}</div>;
 }
 
 function Panel({ title, eyebrow, children, action, className }: { title: string; eyebrow?: string; children: ReactNode; action?: ReactNode; className?: string }) {
-  return <section className={cn("panel-surface overflow-hidden rounded-lg border border-border", className)}><div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4"><div><p className="mb-1 font-mono text-[9px] uppercase tracking-[0.18em] text-primary">{eyebrow ?? "Monitor"}</p><h3 className="text-sm font-semibold uppercase tracking-[0.08em]">{title}</h3></div>{action}</div>{children}</section>;
+  return <section className={cn("panel-surface overflow-hidden rounded-2xl border border-border/80", className)}><div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4"><div><p className="mb-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-primary">{eyebrow ?? "Monitor"}</p><h3 className="text-sm font-semibold uppercase tracking-[0.08em]">{title}</h3></div>{action}</div>{children}</section>;
 }
 
 function KpiCard({ label, value, detail, icon: Icon, danger }: { label: string; value: string; detail: string; icon: typeof Activity; danger?: boolean }) {
-  return <article className="panel-surface group relative rounded-lg border border-border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30"><div className={cn("absolute inset-x-0 top-0 h-px bg-primary/50", danger && "bg-severity-high/60")} /><div className="flex items-start justify-between"><div><p className="font-mono text-[9px] font-semibold tracking-[0.15em] text-muted-foreground">{label}</p><p className="mt-5 font-mono text-3xl font-medium">{value}</p></div><span className={cn("grid h-9 w-9 place-items-center rounded-md border border-primary/20 bg-primary/8 text-primary", danger && "border-severity-high/25 bg-severity-high/8 text-severity-high")}><Icon size={16} /></span></div><p className="mt-2 text-[11px] text-muted-foreground">{detail}</p><div className="mt-4"><LiveMark label="sync" /></div></article>;
+  return <article className="panel-surface group relative rounded-2xl border border-border/80 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-start justify-between"><div><p className="font-mono text-[9px] font-semibold tracking-[0.15em] text-muted-foreground uppercase">{label}</p><p className="mt-4 font-sans text-3xl font-bold tracking-tight text-foreground">{value}</p></div><span className={cn("grid h-10 w-10 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition-colors", danger && "border-severity-high/30 bg-severity-high/12 text-severity-high")}><Icon size={18} /></span></div><div className="mt-4 flex items-center justify-between gap-2 border-t border-border/50 pt-3"><p className="text-[11px] text-muted-foreground">{detail}</p><LiveMark label="sync" /></div></article>;
 }
 
 function ActivityChart({ summary }: { summary: AnalyticsSummary }) {
   const max = Math.max(...summary.activity.map((item) => item.alerts));
-  return <div className="p-5"><div className="flex h-48 items-end gap-2 sm:gap-4">{summary.activity.map((item) => <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2"><div className="relative flex h-36 w-full max-w-8 items-end rounded-t-sm bg-primary/8"><div className="w-full rounded-t-sm bg-primary/60 transition-all duration-500" style={{ height: `${(item.alerts / max) * 100}%` }} /><div className="absolute bottom-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-severity-high" style={{ bottom: `${(item.critical / max) * 100}%` }} /></div><span className="font-mono text-[9px] text-muted-foreground">{item.label}</span></div>)}</div><div className="mt-3 flex items-center gap-4 border-t border-border pt-3 font-mono text-[9px] text-muted-foreground"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-primary" />All alerts</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-severity-high" />Critical</span><span className="ml-auto">24 HOUR WINDOW</span></div></div>;
+  return <div className="p-5"><div className="flex h-48 items-end gap-2 sm:gap-4">{summary.activity.map((item) => <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2"><div className="relative flex h-36 w-full max-w-8 items-end rounded-t-md bg-primary/8"><div className="w-full rounded-t-md bg-[#CD6E80] hover:bg-primary transition-all duration-500" style={{ height: `${(item.alerts / max) * 100}%` }} /><div className="absolute bottom-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary" style={{ bottom: `${(item.critical / max) * 100}%` }} /></div><span className="font-mono text-[9px] text-muted-foreground">{item.label}</span></div>)}</div><div className="mt-3 flex items-center gap-4 border-t border-border/70 pt-3 font-mono text-[9px] text-muted-foreground"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#CD6E80]" />All alerts</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-primary" />Critical</span><span className="ml-auto">24 HOUR WINDOW</span></div></div>;
 }
 
 function SeverityOverview({ summary }: { summary: AnalyticsSummary }) {
@@ -91,10 +93,48 @@ function ThreatPreview({ alerts }: { alerts: SecurityAlert[] }) {
 }
 
 function useTelemetry() {
-  const [alerts, setAlerts] = useState<SecurityAlert[]>([]); const [summary, setSummary] = useState<AnalyticsSummary | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  const load = async () => { setLoading(true); setError(null); try { const [nextAlerts, nextSummary] = await Promise.all([sentinelApi.getAlerts(), sentinelApi.getSummary()]); setAlerts(nextAlerts); setSummary(nextSummary); } catch { setError("Unable to load telemetry"); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, []);
-  return { alerts, setAlerts, summary, loading, error, reload: load };
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [nextAlerts, nextSummary] = await Promise.all([
+        sentinelApi.getAlerts(),
+        sentinelApi.getSummary(),
+      ]);
+      setAlerts(nextAlerts);
+      setSummary(nextSummary);
+    } catch {
+      setError("Unable to load telemetry");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    connectSocket(
+      (newAlert) => {
+        setAlerts((current) => [newAlert, ...current.filter((a) => a.id !== newAlert.id)]);
+      },
+      (connected) => {
+        setSocketConnected(connected);
+      },
+      (updatedAlert) => {
+        setAlerts((current) => current.map((a) => (a.id === updatedAlert.id ? updatedAlert : a)));
+      },
+      (deletedId) => {
+        setAlerts((current) => current.filter((a) => a.id !== deletedId));
+      }
+    );
+  }, []);
+
+  return { alerts, setAlerts, summary, loading, error, reload: load, socketConnected };
 }
 
 export function DashboardPage() {
@@ -113,21 +153,820 @@ export function AnalyticsPage() {
   return <div className="mx-auto max-w-[1500px]"><PageIntro eyebrow="Pattern intelligence" title="Security Analytics" description="Understand attack velocity, vector distribution, and the incidents shaping your current risk posture." />{loading || !summary ? <div className="grid gap-4 md:grid-cols-2"><div className="h-80 animate-pulse rounded-lg border border-border bg-card" /><div className="h-80 animate-pulse rounded-lg border border-border bg-card" /></div> : <div className="grid gap-4 md:grid-cols-2"><Panel title="Threat Activity Over Time" eyebrow="Seven day window"><ActivityChart summary={summary} /></Panel><Panel title="Attack Vector Distribution" eyebrow="Detection signatures"><div className="space-y-5 p-5">{(Object.entries(summary.vectors) as [AttackType, number][]).map(([vector, count]) => <div key={vector}><div className="mb-2 flex justify-between font-mono text-[10px]"><span>{vector}</span><span className="text-primary">{count}</span></div><div className="h-2 rounded-sm bg-muted"><div className="h-full rounded-sm bg-primary" style={{ width: `${(count / Math.max(...Object.values(summary.vectors))) * 100}%` }} /></div></div>)}</div></Panel><Panel title="Alerts by Day" eyebrow="Historical comparison"><div className="flex h-64 items-end gap-3 p-5">{summary.daily.map((item) => <div key={item.day} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-48 w-full max-w-10 items-end gap-1"><div className="w-1/2 rounded-t-sm bg-primary/70" style={{ height: `${(item.alerts / 140) * 100}%` }} /><div className="w-1/2 rounded-t-sm bg-severity-low/70" style={{ height: `${(item.resolved / 140) * 100}%` }} /></div><span className="font-mono text-[9px] text-muted-foreground">{item.day}</span></div>)}</div></Panel><Panel title="Critical Incident Statistics" eyebrow="Priority overview"><div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">{[{ label: "Critical", value: summary.critical, tone: "text-severity-high" }, { label: "Open", value: 11, tone: "text-severity-high" }, { label: "Investigating", value: 24, tone: "text-severity-medium" }, { label: "Resolved", value: 92, tone: "text-severity-low" }].map((item) => <div key={item.label} className="border-l border-border pl-3"><p className="font-mono text-[9px] text-muted-foreground">{item.label}</p><p className={cn("mt-2 font-mono text-2xl", item.tone)}>{item.value}</p></div>)}</div></Panel></div>}</div>;
 }
 
-function DeleteDialog({ alert, onClose, onConfirm }: { alert: SecurityAlert | null; onClose: () => void; onConfirm: () => void }) { return <AlertDialog.Root open={Boolean(alert)} onOpenChange={(open) => !open && onClose()}><AlertDialog.Portal><AlertDialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" /><AlertDialog.Content className="panel-surface fixed left-1/2 top-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border p-6 shadow-2xl"><AlertDialog.Title className="text-base font-semibold">Delete telemetry record?</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">This will remove <span className="font-mono text-foreground">{alert?.id}</span> from the current incident log.</AlertDialog.Description><div className="mt-6 flex justify-end gap-2"><AlertDialog.Cancel asChild><Button>Cancel</Button></AlertDialog.Cancel><AlertDialog.Action asChild><Button variant="danger" onClick={onConfirm}><Trash2 size={13} />Delete record</Button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root>; }
-function DetailDialog({ alert, onClose }: { alert: SecurityAlert | null; onClose: () => void }) { return <Dialog.Root open={Boolean(alert)} onOpenChange={(open) => !open && onClose()}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" /><Dialog.Content className="panel-surface fixed left-1/2 top-1/2 z-50 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border"><div className="flex items-start justify-between border-b border-border p-5"><div><p className="font-mono text-[10px] text-primary">INCIDENT DETAIL</p><Dialog.Title className="mt-1 text-lg font-semibold">{alert?.id}</Dialog.Title></div><Dialog.Close className="text-muted-foreground hover:text-foreground"><X size={18} /></Dialog.Close></div><div className="grid grid-cols-2 gap-x-8 gap-y-6 p-5 text-xs">{alert && <><div><p className="mb-2 text-muted-foreground">Severity</p><SeverityBadge value={alert.severity} /></div><div><p className="mb-2 text-muted-foreground">Status</p><p>{alert.status}</p></div><div><p className="mb-2 text-muted-foreground">Attack vector</p><p>{alert.attackType}</p></div><div><p className="mb-2 text-muted-foreground">Source address</p><p className="font-mono text-primary">{alert.sourceIp}</p></div><div className="col-span-2"><p className="mb-2 text-muted-foreground">Detection summary</p><p className="leading-6">{alert.description}</p></div></>}</div></Dialog.Content></Dialog.Portal></Dialog.Root>; }
-
-export function TelemetryPage() {
-  const { alerts, setAlerts, loading, error, reload } = useTelemetry(); const [query, setQuery] = useState(""); const [severity, setSeverity] = useState<"ALL" | Severity>("ALL"); const [attack, setAttack] = useState("ALL"); const [status, setStatus] = useState("ALL"); const [page, setPage] = useState(1); const [deleteTarget, setDeleteTarget] = useState<SecurityAlert | null>(null); const [detail, setDetail] = useState<SecurityAlert | null>(null); const perPage = 5;
-  const filtered = useMemo(() => alerts.filter((item) => item.sourceIp.includes(query.trim()) && (severity === "ALL" || item.severity === severity) && (attack === "ALL" || item.attackType === attack) && (status === "ALL" || item.status === status)), [alerts, query, severity, attack, status]); const pages = Math.max(1, Math.ceil(filtered.length / perPage)); const rows = filtered.slice((page - 1) * perPage, page * perPage);
-  useEffect(() => setPage(1), [query, severity, attack, status]);
-  const resolve = async (id: string) => { await sentinelApi.resolveAlert(id); setAlerts((current) => current.map((item) => item.id === id ? { ...item, status: "RESOLVED" } : item)); toast.success("Incident resolved"); }; const remove = async () => { if (!deleteTarget) return; await sentinelApi.deleteAlert(deleteTarget.id); setAlerts((current) => current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null); toast.success("Telemetry record deleted"); };
-  return <div className="mx-auto max-w-[1500px]"><PageIntro eyebrow="Forensic record" title="Incident Telemetry" description="Search, filter, and action the historical record of network detections." action={<Button onClick={() => void reload()}><RefreshCw size={13} className={loading ? "animate-spin" : ""} />Refresh</Button>} /><Panel title="Security Incident Telemetry" eyebrow="Retention / 30 days" action={<span className="font-mono text-[10px] text-muted-foreground">{filtered.length} RESULTS</span>}><div className="flex flex-wrap gap-3 border-b border-border px-4 py-3"><label className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Source IP" className="h-9 w-64 rounded-md border border-input bg-background/60 pl-9 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-primary/50" /></label><select value={attack} onChange={(event) => setAttack(event.target.value)} className="h-9 rounded-md border border-input bg-background/60 px-3 text-xs text-foreground outline-none"><option value="ALL">All vectors</option><option>BRUTE FORCE</option><option>PORT SCAN</option><option>DOS BURST</option></select><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border border-input bg-background/60 px-3 text-xs text-foreground outline-none"><option value="ALL">All statuses</option><option>OPEN</option><option>INVESTIGATING</option><option>RESOLVED</option></select><div className="flex items-center rounded-md border border-border bg-background/40 p-1"><Filter size={13} className="mx-2 text-muted-foreground" />{(["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((value) => <Button key={value} variant={severity === value ? "secondary" : "ghost"} size="sm" onClick={() => setSeverity(value)}>{value}</Button>)}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[1000px] border-collapse text-left"><thead><tr className="border-b border-border bg-background/35 font-mono text-[9px] uppercase tracking-[0.13em] text-muted-foreground"><th className="px-5 py-3 font-medium">Severity</th><th className="px-4 py-3 font-medium">Attack Vector</th><th className="px-4 py-3 font-medium">Source IP</th><th className="px-4 py-3 font-medium">Description</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Timestamp</th><th className="px-4 py-3 text-right font-medium">Action</th></tr></thead><tbody>{loading ? <tr><td colSpan={7} className="h-52 text-center"><RefreshCw className="mx-auto mb-2 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Loading telemetry…</span></td></tr> : error ? <tr><td colSpan={7} className="h-52 text-center"><AlertTriangle className="mx-auto mb-2 text-severity-high" /><p className="text-sm">Telemetry failed to load</p></td></tr> : rows.length === 0 ? <tr><td colSpan={7} className="h-52 text-center"><Search className="mx-auto mb-2 text-muted-foreground" /><p className="text-sm">No matching incidents</p></td></tr> : rows.map((alert) => <tr key={alert.id} className="border-b border-border/70 text-xs transition-colors hover:bg-accent/35"><td className="px-5 py-3"><SeverityBadge value={alert.severity} /></td><td className="px-4 py-3 font-medium">{alert.attackType}</td><td className="px-4 py-3 font-mono text-primary">{alert.sourceIp}</td><td className="max-w-[320px] truncate px-4 py-3 text-muted-foreground">{alert.description}</td><td className="px-4 py-3"><span className={cn("inline-flex items-center gap-1.5 font-mono text-[9px]", alert.status === "RESOLVED" ? "text-severity-low" : alert.status === "OPEN" ? "text-severity-high" : "text-severity-medium")}><CircleDot size={10} />{alert.status}</span></td><td className="px-4 py-3 font-mono text-[10px] text-muted-foreground">02 OCT · {alert.timestamp}</td><td className="px-4 py-3"><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" title="View alert" onClick={() => setDetail(alert)}><Eye size={13} /></Button><Button variant="ghost" size="icon" title="Resolve alert" disabled={alert.status === "RESOLVED"} onClick={() => void resolve(alert.id)}><Check size={13} /></Button><Button variant="ghost" size="icon" title="Delete alert" onClick={() => setDeleteTarget(alert)}><Trash2 size={13} /></Button></div></td></tr>)}</tbody></table></div><div className="flex items-center justify-between px-5 py-3"><p className="font-mono text-[10px] text-muted-foreground">SHOWING {rows.length} OF {filtered.length} RESULTS</p><div className="flex items-center gap-3"><Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft size={13} />Previous</Button><span className="font-mono text-[10px] text-muted-foreground">PAGE {page} / {pages}</span><Button variant="ghost" size="sm" disabled={page === pages} onClick={() => setPage((value) => value + 1)}>Next<ChevronRight size={13} /></Button></div></div></Panel><DeleteDialog alert={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()} /><DetailDialog alert={detail} onClose={() => setDetail(null)} /></div>;
+function DeleteDialog({ alert, onClose, onConfirm }: { alert: SecurityAlert | null; onClose: () => void; onConfirm: () => void }) { return <AlertDialog.Root open={Boolean(alert)} onOpenChange={(open) => !open && onClose()}><AlertDialog.Portal><AlertDialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" /><AlertDialog.Content className="panel-surface fixed left-1/2 top-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border p-6 shadow-2xl"><AlertDialog.Title className="text-base font-semibold">Delete telemetry record?</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">This will remove <span className="font-mono text-foreground">{alert?.id}</span> from the current incident log.</AlertDialog.Description><div className="mt-6 flex justify-end gap-2"><AlertDialog.Cancel asChild><Button>Cancel</Button></AlertDialog.Cancel><AlertDialog.Action asChild><Button variant="danger" onClick={onConfirm}><Trash2 size={13} />Delete record</Button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root>;
 }
 
-const simulations: { type: AttackType; description: string; severity: Severity; icon: typeof Activity; endpoint: string }[] = [{ type: "BRUTE FORCE", description: "Generate failed login burst", severity: "HIGH", icon: UserRoundSearch, endpoint: "/api/simulate/brute-force" }, { type: "PORT SCAN", description: "Generate multi-port scanning activity", severity: "MEDIUM", icon: Radar, endpoint: "/api/simulate/port-scan" }, { type: "DOS BURST", description: "Generate high request volume", severity: "HIGH", icon: Zap, endpoint: "/api/simulate/dos-burst" }];
-export function SimulatorPage() { const [busy, setBusy] = useState<AttackType | null>(null); const [last, setLast] = useState<Partial<Record<AttackType, string>>>({}); const trigger = async (type: AttackType) => { setBusy(type); const alert = await sentinelApi.simulate(type); setLast((current) => ({ ...current, [type]: alert.timestamp })); setBusy(null); toast.warning(`${type} signature injected`, { description: `${alert.sourceIp} added to the live stream.` }); }; return <div className="mx-auto max-w-[1200px]"><PageIntro eyebrow="Controlled testing" title="Attack Simulator" description="Generate synthetic signatures for detection validation. Controls are isolated and ready to connect to the simulation endpoints." /><div className="mb-5 flex items-center gap-3 rounded-md border border-severity-medium/20 bg-severity-medium/5 px-4 py-3 text-xs text-muted-foreground"><AlertTriangle size={15} className="text-severity-medium" /><span>Simulation events are mock-only in this environment and do not reach a production network.</span></div><div className="grid gap-4 md:grid-cols-3">{simulations.map(({ type, description, severity, icon: Icon, endpoint }) => <article key={type} className="panel-surface rounded-lg border border-border p-5 transition-colors hover:border-primary/30"><div className="flex items-start justify-between"><span className="grid h-11 w-11 place-items-center rounded-md border border-primary/20 bg-primary/10 text-primary"><Icon size={21} /></span><SeverityBadge value={severity} /></div><h3 className="mt-8 text-base font-semibold tracking-wide">{type}</h3><p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">{description}</p><p className="mt-6 font-mono text-[9px] text-muted-foreground">POST {endpoint}</p><Button className="mt-4 w-full" onClick={() => void trigger(type)} disabled={Boolean(busy)}>{busy === type ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} />}Trigger simulation</Button><p className="mt-4 font-mono text-[9px] text-muted-foreground">LAST TRIGGERED <span className="text-foreground">{last[type] ?? "Never"}</span></p></article>)}</div></div>; }
+function DetailDialog({
+  alert,
+  onClose,
+  onUpdate,
+}: {
+  alert: SecurityAlert | null;
+  onClose: () => void;
+  onUpdate?: (updated: SecurityAlert) => void;
+}) {
+  const [updating, setUpdating] = useState(false);
+  const session = getDemoSession();
 
-export function SettingsPage() { const session = getDemoSession(); return <div className="mx-auto max-w-[1000px]"><PageIntro eyebrow="Console configuration" title="Settings" description="Review the analyst profile, display preferences, and current connection details." /><div className="grid gap-4 md:grid-cols-2"><Panel title="Analyst Profile" eyebrow="Identity"><div className="space-y-4 p-5"><div className="flex items-center gap-4"><div className="grid h-14 w-14 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-lg text-primary">AN</div><div><p className="font-medium">{session?.label ?? "Analyst"}</p><p className="mt-1 text-xs text-muted-foreground">{session?.email ?? "analyst@sentinel.sec"}</p></div></div><div className="grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs"><div><p className="text-muted-foreground">Clearance</p><p className="mt-1 font-mono">SOC-TIER-1</p></div><div><p className="text-muted-foreground">Workstation</p><p className="mt-1 font-mono">WS-04A-AN</p></div></div></div></Panel><Panel title="Appearance" eyebrow="Display preferences"><div className="space-y-5 p-5"><label className="flex items-center justify-between text-xs"><span>Interface density</span><select className="h-8 rounded-md border border-input bg-background/60 px-2 text-xs"><option>Comfortable</option><option>Compact</option></select></label><label className="flex items-center justify-between text-xs"><span>High contrast data mode</span><input type="checkbox" className="h-4 w-4 accent-primary" /></label><label className="flex items-center justify-between text-xs"><span>Critical alert chime</span><input type="checkbox" defaultChecked className="h-4 w-4 accent-primary" /></label></div></Panel><Panel title="Connection Information" eyebrow="Runtime status" className="md:col-span-2"><div className="grid gap-4 p-5 sm:grid-cols-3"><div><p className="font-mono text-[9px] text-muted-foreground">ALERTS API</p><p className="mt-2 flex items-center gap-2 text-xs"><span className="h-2 w-2 rounded-full bg-severity-low" />Operational</p></div><div><p className="font-mono text-[9px] text-muted-foreground">SOCKET STREAM</p><p className="mt-2 flex items-center gap-2 text-xs"><span className="h-2 w-2 rounded-full bg-severity-low" />Connected · 18 ms</p></div><div><p className="font-mono text-[9px] text-muted-foreground">LAST SYNC</p><p className="mt-2 font-mono text-xs">Just now</p></div></div></Panel></div></div>; }
+  const handleStatusChange = async (newStatus: AlertStatus) => {
+    if (!alert) return;
+    setUpdating(true);
+    try {
+      const updated = await sentinelApi.updateAlert(alert.id, { status: newStatus });
+      onUpdate?.(updated);
+      toast.success(`Alert transitioned to ${newStatus}`);
+    } catch (err: any) {
+      toast.error(`Failed to update status: ${err.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleAssign = async () => {
+    if (!alert) return;
+    setUpdating(true);
+    try {
+      const analystId = session?.email ?? "analyst@sentinel.sec";
+      const updated = await sentinelApi.updateAlert(alert.id, { assignedTo: analystId });
+      onUpdate?.(updated);
+      toast.success(`Alert assigned to ${analystId}`);
+    } catch (err: any) {
+      toast.error(`Failed to assign: ${err.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return (
+    <Dialog.Root open={Boolean(alert)} onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" />
+        <Dialog.Content className="panel-surface fixed left-1/2 top-1/2 z-50 w-[min(540px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border">
+          <div className="flex items-start justify-between border-b border-border p-5">
+            <div>
+              <p className="font-mono text-[10px] text-primary">INCIDENT DETAIL &amp; LIFECYCLE</p>
+              <Dialog.Title className="mt-1 text-lg font-semibold">{alert?.id}</Dialog.Title>
+            </div>
+            <Dialog.Close className="text-muted-foreground hover:text-foreground">
+              <X size={18} />
+            </Dialog.Close>
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5 p-5 text-xs">
+            {alert && (
+              <>
+                <div>
+                  <p className="mb-2 text-muted-foreground">Severity</p>
+                  <SeverityBadge value={alert.severity} />
+                </div>
+                <div>
+                  <p className="mb-2 text-muted-foreground">Current Status</p>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold",
+                      alert.status === "RESOLVED"
+                        ? "text-severity-low"
+                        : alert.status === "OPEN"
+                          ? "text-severity-high"
+                          : "text-severity-medium"
+                    )}
+                  >
+                    <CircleDot size={11} />
+                    {alert.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="mb-2 text-muted-foreground">Attack vector</p>
+                  <p className="font-medium text-foreground">{alert.attackType}</p>
+                </div>
+                <div>
+                  <p className="mb-2 text-muted-foreground">Source address</p>
+                  <p className="font-mono text-primary font-medium">{alert.sourceIp}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="mb-2 text-muted-foreground">Assigned Analyst</p>
+                  <div className="flex items-center justify-between rounded-md border border-border/80 bg-background/50 px-3 py-2">
+                    <span className="font-mono text-[11px] text-foreground">
+                      {alert.assignedTo ? alert.assignedTo : "Unassigned"}
+                    </span>
+                    {!alert.assignedTo && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={updating}
+                        onClick={() => void handleAssign()}
+                        className="h-6 text-[10px]"
+                      >
+                        <UserCheck size={12} />
+                        Assign to Me
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <p className="mb-2 text-muted-foreground">Detection summary</p>
+                  <p className="leading-6 text-foreground/90">{alert.description}</p>
+                </div>
+                <div className="col-span-2 border-t border-border pt-4">
+                  <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Analyst Actions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {alert.status === "OPEN" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={updating}
+                        onClick={() => void handleStatusChange("INVESTIGATING")}
+                      >
+                        <Eye size={12} />
+                        Investigate
+                      </Button>
+                    )}
+                    {alert.status !== "RESOLVED" && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={updating}
+                        onClick={() => void handleStatusChange("RESOLVED")}
+                      >
+                        <Check size={12} />
+                        Mark Resolved
+                      </Button>
+                    )}
+                    {alert.status === "RESOLVED" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={updating}
+                        onClick={() => void handleStatusChange("OPEN")}
+                      >
+                        <RefreshCw size={12} />
+                        Re-open Alert
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+export function TelemetryPage() {
+  const { alerts, setAlerts, loading, error, reload } = useTelemetry();
+  const [query, setQuery] = useState("");
+  const [severity, setSeverity] = useState<"ALL" | Severity>("ALL");
+  const [attack, setAttack] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<SecurityAlert | null>(null);
+  const [detail, setDetail] = useState<SecurityAlert | null>(null);
+  const perPage = 5;
+
+  const filtered = useMemo(
+    () =>
+      alerts.filter(
+        (item) =>
+          item.sourceIp.includes(query.trim()) &&
+          (severity === "ALL" || item.severity === severity) &&
+          (attack === "ALL" || item.attackType === attack) &&
+          (status === "ALL" || item.status === status)
+      ),
+    [alerts, query, severity, attack, status]
+  );
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const rows = filtered.slice((page - 1) * perPage, page * perPage);
+
+  useEffect(() => setPage(1), [query, severity, attack, status]);
+
+  const resolve = async (id: string) => {
+    await sentinelApi.resolveAlert(id);
+    setAlerts((current) => current.map((item) => (item.id === id ? { ...item, status: "RESOLVED" } : item)));
+    toast.success("Incident resolved");
+  };
+
+  const remove = async () => {
+    if (!deleteTarget) return;
+    await sentinelApi.deleteAlert(deleteTarget.id);
+    setAlerts((current) => current.filter((item) => item.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    toast.success("Telemetry record deleted");
+  };
+
+  return (
+    <div className="mx-auto max-w-[1500px]">
+      <PageIntro
+        eyebrow="Forensic record"
+        title="Incident Telemetry"
+        description="Search, filter, and action the historical record of network detections."
+        action={
+          <Button onClick={() => void reload()}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </Button>
+        }
+      />
+      <Panel
+        title="Security Incident Telemetry"
+        eyebrow="Retention / 30 days"
+        action={<span className="font-mono text-[10px] text-muted-foreground">{filtered.length} RESULTS</span>}
+      >
+        <div className="flex flex-wrap gap-3 border-b border-border px-4 py-3">
+          <label className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search Source IP"
+              className="h-9 w-64 rounded-md border border-input bg-background/60 pl-9 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-primary/50"
+            />
+          </label>
+          <select
+            value={attack}
+            onChange={(event) => setAttack(event.target.value)}
+            className="h-9 rounded-md border border-input bg-background/60 px-3 text-xs text-foreground outline-none"
+          >
+            <option value="ALL">All vectors</option>
+            <option>BRUTE FORCE</option>
+            <option>PORT SCAN</option>
+            <option>DOS BURST</option>
+          </select>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className="h-9 rounded-md border border-input bg-background/60 px-3 text-xs text-foreground outline-none"
+          >
+            <option value="ALL">All statuses</option>
+            <option>OPEN</option>
+            <option>INVESTIGATING</option>
+            <option>RESOLVED</option>
+          </select>
+          <div className="flex items-center rounded-md border border-border bg-background/40 p-1">
+            <Filter size={13} className="mx-2 text-muted-foreground" />
+            {(["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((value) => (
+              <Button
+                key={value}
+                variant={severity === value ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setSeverity(value)}
+              >
+                {value}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-border bg-background/35 font-mono text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
+                <th className="px-5 py-3 font-medium">Severity</th>
+                <th className="px-4 py-3 font-medium">Attack Vector</th>
+                <th className="px-4 py-3 font-medium">Source IP</th>
+                <th className="px-4 py-3 font-medium">Description</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Timestamp</th>
+                <th className="px-4 py-3 text-right font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="h-52 text-center">
+                    <RefreshCw className="mx-auto mb-2 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Loading telemetry…</span>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="h-52 text-center">
+                    <AlertTriangle className="mx-auto mb-2 text-severity-high" />
+                    <p className="text-sm">Telemetry failed to load</p>
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="h-52 text-center">
+                    <Search className="mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm">No matching incidents</p>
+                  </td>
+                </tr>
+              ) : (
+                rows.map((alert) => (
+                  <tr key={alert.id} className="border-b border-border/70 text-xs transition-colors hover:bg-accent/35">
+                    <td className="px-5 py-3">
+                      <SeverityBadge value={alert.severity} />
+                    </td>
+                    <td className="px-4 py-3 font-medium">{alert.attackType}</td>
+                    <td className="px-4 py-3 font-mono text-primary">{alert.sourceIp}</td>
+                    <td className="max-w-[320px] truncate px-4 py-3 text-muted-foreground">{alert.description}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 font-mono text-[9px]",
+                          alert.status === "RESOLVED"
+                            ? "text-severity-low"
+                            : alert.status === "OPEN"
+                              ? "text-severity-high"
+                              : "text-severity-medium"
+                        )}
+                      >
+                        <CircleDot size={10} />
+                        {alert.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground">
+                      02 OCT · {alert.timestamp}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="View &amp; Action Alert"
+                          onClick={() => setDetail(alert)}
+                        >
+                          <Eye size={13} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Resolve alert"
+                          disabled={alert.status === "RESOLVED"}
+                          onClick={() => void resolve(alert.id)}
+                        >
+                          <Check size={13} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Delete alert"
+                          onClick={() => setDeleteTarget(alert)}
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <p className="font-mono text-[10px] text-muted-foreground">
+            SHOWING {rows.length} OF {filtered.length} RESULTS
+          </p>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
+              <ChevronLeft size={13} />
+              Previous
+            </Button>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              PAGE {page} / {pages}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={page === pages}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+              <ChevronRight size={13} />
+            </Button>
+          </div>
+        </div>
+      </Panel>
+      <DeleteDialog alert={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()} />
+      <DetailDialog
+        alert={detail}
+        onClose={() => setDetail(null)}
+        onUpdate={(updated) => {
+          setAlerts((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+          setDetail(updated);
+        }}
+      />
+    </div>
+  );
+}
+
+const simulations: {
+  type: AttackType;
+  description: string;
+  severity: Severity;
+  icon: typeof Activity;
+  endpoint: string;
+}[] = [
+  {
+    type: "BRUTE FORCE",
+    description: "Generate failed login burst",
+    severity: "HIGH",
+    icon: UserRoundSearch,
+    endpoint: "/api/simulate/brute-force",
+  },
+  {
+    type: "PORT SCAN",
+    description: "Generate multi-port scanning activity",
+    severity: "MEDIUM",
+    icon: Radar,
+    endpoint: "/api/simulate/port-scan",
+  },
+  {
+    type: "DOS BURST",
+    description: "Generate high request volume",
+    severity: "HIGH",
+    icon: Zap,
+    endpoint: "/api/simulate/dos-burst",
+  },
+];
+
+export function SimulatorPage() {
+  const [busy, setBusy] = useState<AttackType | null>(null);
+  const [last, setLast] = useState<Partial<Record<AttackType, string>>>({});
+  const trigger = async (type: AttackType) => {
+    setBusy(type);
+    const alert = await sentinelApi.simulate(type);
+    setLast((current) => ({ ...current, [type]: alert.timestamp }));
+    setBusy(null);
+    toast.warning(`${type} signature injected`, {
+      description: `${alert.sourceIp} added to the live stream.`,
+    });
+  };
+  return (
+    <div className="mx-auto max-w-[1200px]">
+      <PageIntro
+        eyebrow="Controlled testing"
+        title="Attack Simulator"
+        description="Generate synthetic signatures for detection validation. Controls are isolated and ready to connect to the simulation endpoints."
+      />
+      <div className="mb-5 flex items-center gap-3 rounded-md border border-severity-medium/20 bg-severity-medium/5 px-4 py-3 text-xs text-muted-foreground">
+        <AlertTriangle size={15} className="text-severity-medium" />
+        <span>Simulation events are processed through the intrusion detection engine in real time.</span>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {simulations.map(({ type, description, severity, icon: Icon, endpoint }) => (
+          <article
+            key={type}
+            className="panel-surface rounded-lg border border-border p-5 transition-colors hover:border-primary/30"
+          >
+            <div className="flex items-start justify-between">
+              <span className="grid h-11 w-11 place-items-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                <Icon size={21} />
+              </span>
+              <SeverityBadge value={severity} />
+            </div>
+            <h3 className="mt-8 text-base font-semibold tracking-wide">{type}</h3>
+            <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">{description}</p>
+            <p className="mt-6 font-mono text-[9px] text-muted-foreground">POST {endpoint}</p>
+            <Button
+              className="mt-4 w-full"
+              onClick={() => void trigger(type)}
+              disabled={Boolean(busy)}
+            >
+              {busy === type ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} />}
+              Trigger simulation
+            </Button>
+            <p className="mt-4 font-mono text-[9px] text-muted-foreground">
+              LAST TRIGGERED <span className="text-foreground">{last[type] ?? "Never"}</span>
+            </p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SettingsPage() {
+  const session = getDemoSession();
+  const [notifStatus, setNotifStatus] = useState<NotificationStatusResponse | null>(null);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [auditData, setAuditData] = useState<{ logs: AuditLogRecord[]; total: number; totalPages: number }>({
+    logs: [],
+    total: 0,
+    totalPages: 1,
+  });
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+
+  const loadNotifications = async () => {
+    setNotifLoading(true);
+    try {
+      const data = await sentinelApi.getNotificationStatus();
+      setNotifStatus(data);
+    } catch {
+      // Fallback if backend is offline
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const loadAuditLogs = async (p = 1) => {
+    setAuditLoading(true);
+    try {
+      const data = await sentinelApi.getAuditLogs({ page: p, limit: 6 });
+      setAuditData(data);
+      setAuditPage(p);
+    } catch {
+      // Fallback
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadNotifications();
+    void loadAuditLogs(1);
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-[1100px] space-y-6">
+      <PageIntro
+        eyebrow="Console configuration"
+        title="Settings &amp; Audit Trail"
+        description="Review analyst credentials, monitor notification worker channels, and inspect the tamper-evident audit log."
+      />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Panel title="Analyst Profile" eyebrow="Identity">
+          <div className="space-y-4 p-5">
+            <div className="flex items-center gap-4">
+              <div className="grid h-14 w-14 place-items-center rounded-full border border-primary/25 bg-primary/10 font-mono text-lg text-primary">
+                AN
+              </div>
+              <div>
+                <p className="font-medium">{session?.label ?? "Analyst"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{session?.email ?? "analyst@sentinel.sec"}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 border-t border-border pt-4 text-xs">
+              <div>
+                <p className="text-muted-foreground">Clearance</p>
+                <p className="mt-1 font-mono">SOC-TIER-1</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Workstation</p>
+                <p className="mt-1 font-mono">WS-04A-AN</p>
+              </div>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="Appearance" eyebrow="Display preferences">
+          <div className="space-y-5 p-5">
+            <label className="flex items-center justify-between text-xs">
+              <span>Interface density</span>
+              <select className="h-8 rounded-md border border-input bg-background/60 px-2 text-xs">
+                <option>Comfortable</option>
+                <option>Compact</option>
+              </select>
+            </label>
+            <label className="flex items-center justify-between text-xs">
+              <span>High contrast data mode</span>
+              <input type="checkbox" className="h-4 w-4 accent-primary" />
+            </label>
+            <label className="flex items-center justify-between text-xs">
+              <span>Critical alert chime</span>
+              <input type="checkbox" defaultChecked className="h-4 w-4 accent-primary" />
+            </label>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Notification Dispatch Channels"
+          eyebrow="Multi-Channel Worker"
+          className="md:col-span-2"
+          action={
+            <Button variant="ghost" size="sm" onClick={() => void loadNotifications()} disabled={notifLoading}>
+              <RefreshCw size={12} className={notifLoading ? "animate-spin" : ""} />
+              Refresh
+            </Button>
+          }
+        >
+          <div className="p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-accent/20 px-4 py-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Radio size={14} className="text-primary" />
+                <span className="text-muted-foreground">Dispatcher Worker:</span>
+                <span className="font-mono text-foreground font-medium">Standalone Redis Subscriber</span>
+              </div>
+              <div className="flex items-center gap-4 font-mono text-[11px]">
+                <span>
+                  MIN SEVERITY:{" "}
+                  <span className="font-semibold text-severity-high">
+                    {notifStatus?.min_severity ?? "HIGH"}
+                  </span>
+                </span>
+                <span>
+                  COOLDOWN:{" "}
+                  <span className="font-semibold text-primary">
+                    {notifStatus?.cooldown_seconds ?? 300}s
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  id: "discord",
+                  name: "Discord Webhook",
+                  icon: MessageSquare,
+                  desc: "Rich embeds with bounded 1x retry and rate-limit backoff.",
+                },
+                {
+                  id: "telegram",
+                  name: "Telegram Bot",
+                  icon: Send,
+                  desc: "Markdown alert notifications via Telegram Bot API.",
+                },
+                {
+                  id: "email",
+                  name: "SMTP Email",
+                  icon: Mail,
+                  desc: "Nodemailer transport to designated SOC alerts inbox.",
+                },
+              ].map(({ id, name, icon: Icon, desc }) => {
+                const provider = notifStatus?.providers.find((p) => p.name.toLowerCase() === id);
+                const isReady = provider ? provider.enabled && provider.configured : false;
+                return (
+                  <div
+                    key={id}
+                    className="flex flex-col justify-between rounded-lg border border-border/80 bg-background/50 p-4 transition-colors hover:border-primary/30"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="grid h-9 w-9 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                          <Icon size={16} />
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase",
+                            isReady
+                              ? "border border-severity-low/30 bg-severity-low/10 text-severity-low"
+                              : "border border-muted/50 bg-muted/20 text-muted-foreground"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              isReady ? "bg-severity-low" : "bg-muted-foreground/60"
+                            )}
+                          />
+                          {isReady ? "ACTIVE" : "STANDBY"}
+                        </span>
+                      </div>
+                      <h4 className="mt-3 text-sm font-semibold">{name}</h4>
+                      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{desc}</p>
+                    </div>
+                    <div className="mt-4 border-t border-border/60 pt-3 font-mono text-[10px] text-muted-foreground">
+                      {isReady ? "OPERATIONAL" : "CONFIG OPTIONAL (ENV)"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Incident Audit Trail"
+          eyebrow="Append-Only Log"
+          className="md:col-span-2"
+          action={
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-muted-foreground">
+                TOTAL {auditData.total}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void loadAuditLogs(auditPage)}
+                disabled={auditLoading}
+              >
+                <RefreshCw size={12} className={auditLoading ? "animate-spin" : ""} />
+                Refresh
+              </Button>
+            </div>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-border bg-background/35 font-mono text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
+                  <th className="px-5 py-3 font-medium">Timestamp</th>
+                  <th className="px-4 py-3 font-medium">Actor</th>
+                  <th className="px-4 py-3 font-medium">Action</th>
+                  <th className="px-4 py-3 font-medium">Target</th>
+                  <th className="px-4 py-3 font-medium">Metadata</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLoading ? (
+                  <tr>
+                    <td colSpan={5} className="h-40 text-center">
+                      <RefreshCw className="mx-auto mb-2 animate-spin text-primary" size={16} />
+                      <span className="text-xs text-muted-foreground">Loading audit log records…</span>
+                    </td>
+                  </tr>
+                ) : auditData.logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="h-32 text-center text-xs text-muted-foreground">
+                      No audit events recorded yet. Analyst status updates and notifications will appear here.
+                    </td>
+                  </tr>
+                ) : (
+                  auditData.logs.map((log) => (
+                    <tr key={log.id} className="border-b border-border/50 text-xs transition-colors hover:bg-accent/30">
+                      <td className="px-5 py-3 font-mono text-[10px] text-muted-foreground">
+                        {log.createdAt}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-primary">
+                        {log.actor}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "inline-flex rounded px-1.5 py-0.5 font-mono text-[9px] font-medium",
+                            log.action.includes("NOTIFICATION")
+                              ? "border border-primary/30 bg-primary/10 text-primary"
+                              : log.action.includes("DELETE")
+                                ? "border border-severity-high/30 bg-severity-high/10 text-severity-high"
+                                : log.action.includes("RESOLVED")
+                                  ? "border border-severity-low/30 bg-severity-low/10 text-severity-low"
+                                  : "border border-severity-medium/30 bg-severity-medium/10 text-severity-medium"
+                          )}
+                        >
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground">
+                        {log.target.type}:{log.target.id}
+                      </td>
+                      <td className="max-w-[260px] truncate px-4 py-3 font-mono text-[10px] text-muted-foreground">
+                        {JSON.stringify(log.metadata)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {auditData.totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-5 py-3">
+              <span className="font-mono text-[10px] text-muted-foreground">
+                PAGE {auditPage} OF {auditData.totalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={auditPage === 1 || auditLoading}
+                  onClick={() => void loadAuditLogs(auditPage - 1)}
+                >
+                  <ChevronLeft size={13} />
+                  Previous
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={auditPage === auditData.totalPages || auditLoading}
+                  onClick={() => void loadAuditLogs(auditPage + 1)}
+                >
+                  Next
+                  <ChevronRight size={13} />
+                </Button>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Connection Information" eyebrow="Runtime status" className="md:col-span-2">
+          <div className="grid gap-4 p-5 sm:grid-cols-3">
+            <div>
+              <p className="font-mono text-[9px] text-muted-foreground">ALERTS API</p>
+              <p className="mt-2 flex items-center gap-2 text-xs">
+                <span className="h-2 w-2 rounded-full bg-severity-low" />
+                Operational
+              </p>
+            </div>
+            <div>
+              <p className="font-mono text-[9px] text-muted-foreground">SOCKET STREAM</p>
+              <p className="mt-2 flex items-center gap-2 text-xs">
+                <span className="h-2 w-2 rounded-full bg-severity-low" />
+                Connected · 18 ms
+              </p>
+            </div>
+            <div>
+              <p className="font-mono text-[9px] text-muted-foreground">LAST SYNC</p>
+              <p className="mt-2 font-mono text-xs">Just now</p>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage() { const navigate = useNavigate(); const [email, setEmail] = useState("analyst@sentinel.sec"); const [password, setPassword] = useState("sentinel"); const [showPassword, setShowPassword] = useState(false); const [remember, setRemember] = useState(true); const [error, setError] = useState(""); const submit = (event: React.FormEvent) => { event.preventDefault(); if (!email.trim() || password.length < 4) { setError("Enter a valid analyst identity and password."); return; } signInDemo(email.trim(), remember); void navigate({ to: "/dashboard" }); }; return <div className="soc-grid flex min-h-screen items-center justify-center bg-background px-5 py-10"><div className="grid w-full max-w-5xl overflow-hidden rounded-lg border border-border bg-card/90 shadow-2xl lg:grid-cols-[1.05fr_0.95fr]"><div className="relative hidden min-h-[560px] flex-col justify-between border-r border-border p-10 lg:flex"><div><Logo /><div className="mt-24 max-w-md"><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary">Analyst access portal</p><h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight">See the signal<br /><span className="text-primary">before it becomes impact.</span></h1><p className="mt-6 max-w-sm text-sm leading-6 text-muted-foreground">SentinelIDS brings network telemetry, threat intelligence, and incident response into one focused operations view.</p></div></div><div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-widest text-muted-foreground"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-severity-low" />Monitoring systems nominal</span><span>SECURE / SOC-02</span></div></div><div className="p-7 sm:p-10"><div className="mb-10 lg:hidden"><Logo /></div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">Secure sign in</p><h2 className="mt-3 text-2xl font-semibold">Analyst Login</h2><p className="mt-2 text-sm text-muted-foreground">Authenticate to access the SentinelIDS operations center.</p><form onSubmit={submit} className="mt-9 space-y-5"><label className="block"><span className="mb-2 block text-xs font-medium">Email or username</span><input autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 w-full rounded-md border border-input bg-background/60 px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/60" placeholder="analyst@sentinel.sec" /></label><label className="block"><span className="mb-2 block text-xs font-medium">Password</span><div className="relative"><input autoComplete="current-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} className="h-11 w-full rounded-md border border-input bg-background/60 px-3 pr-20 text-sm outline-none transition-colors focus:border-primary/60" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-muted-foreground hover:text-foreground">{showPassword ? "HIDE" : "SHOW"}</button></div></label><div className="flex items-center justify-between"><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="h-4 w-4 accent-primary" />Remember this workstation</label><span className="font-mono text-[9px] text-muted-foreground">DEMO ACCESS</span></div>{error && <p role="alert" className="rounded-md border border-severity-high/30 bg-severity-high/10 px-3 py-2 text-xs text-severity-high">{error}</p>}<Button type="submit" variant="primary" size="lg" className="mt-3 w-full">Sign in to SentinelIDS <ChevronRight size={15} /></Button></form><p className="mt-8 border-t border-border pt-5 text-center font-mono text-[9px] uppercase tracking-widest text-muted-foreground">Frontend demonstration environment · v2.0.0</p></div></div></div>; }
 

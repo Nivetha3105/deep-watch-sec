@@ -2,3 +2,11 @@
 - [x] Reorganize SentinelIDS into login, dashboard, threats, analytics, telemetry, simulator, and settings views.
 - [x] Preserve the existing mock service layer and add dashboard-friendly analytics data.
 - [x] Verify routing, build output, and key login/navigation interactions.
+- [x] Integrate Network Intrusion backend into unified `backend/` directory with Express, detection engine, and simulator.
+- [x] Wire live REST APIs and Socket.IO real-time stream into frontend telemetry and dashboard.
+- [x] Create multi-container Docker Compose setup (`mongodb`, `redis`, `backend`, `frontend`) with Nginx proxy.
+- [x] Provide unified dev scripts (`npm run dev:all`, `npm run simulate:all`) and verify end-to-end traffic flow.
+- [x] Implement standalone notification worker with multi-channel dispatch (Discord, Telegram, SMTP) and deduplication cooldown.
+- [x] Implement append-only MongoDB audit logging and analyst lifecycle transitions (`OPEN`, `INVESTIGATING`, `RESOLVED`, assignment).
+- [x] Integrate Settings & Audit Trail UI with notification dispatcher health status and tamper-evident audit history.
+
