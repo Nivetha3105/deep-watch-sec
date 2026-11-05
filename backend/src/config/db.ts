@@ -1,3 +1,4 @@
+import * as dns from 'node:dns';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
@@ -15,7 +16,7 @@ export async function connectDB(): Promise<void> {
   try {
     mongoose.connection.on('connected', () => {
       isDBConnected = true;
-      console.log('✅ MongoDB connected successfully to:', MONGODB_URI);
+      console.log('✅ MongoDB connected successfully.');
     });
 
     mongoose.connection.on('error', (err) => {
@@ -27,6 +28,7 @@ export async function connectDB(): Promise<void> {
       isDBConnected = false;
       console.warn('MongoDB connection lost. Reconnecting...');
     });
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
 
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 2500,
@@ -34,7 +36,7 @@ export async function connectDB(): Promise<void> {
     isDBConnected = true;
   } catch (error: any) {
     isDBConnected = false;
-    console.warn(`⚠️ Notice: MongoDB not reached at ${MONGODB_URI} (${error.message}).`);
+    console.warn(`⚠️ MongoDB connection failed: ${error.message}`);
     console.warn(`💡 Backend is running in standalone mode. Once MongoDB / Docker starts, it will connect automatically.`);
   }
 }

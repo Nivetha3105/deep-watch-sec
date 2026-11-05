@@ -1,3 +1,4 @@
+import dns from 'dns';
 import http from 'http';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -14,6 +15,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import { notificationWorker } from './services/notificationWorker';
 
 dotenv.config();
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const app: Application = express();
 const server = http.createServer(app);
